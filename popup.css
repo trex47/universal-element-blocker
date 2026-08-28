@@ -1,0 +1,190 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #f5f7fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 360px;
+  margin: 0;
+}
+
+main {
+  padding: 16px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 18px;
+}
+
+h2 {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+#current-host {
+  max-width: 260px;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #667085;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+form,
+section {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #e1e6ef;
+  border-radius: 10px;
+  background: #fff;
+}
+
+label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+input[type="text"],
+select {
+  width: 100%;
+  margin-top: 5px;
+  padding: 9px 10px;
+  border: 1px solid #cfd6e4;
+  border-radius: 7px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-weight: 400;
+}
+
+button {
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+}
+
+form button {
+  width: 100%;
+  padding: 9px;
+  background: #315efb;
+  color: #fff;
+  font-weight: 700;
+}
+
+#form-error {
+  min-height: 16px;
+  margin-top: 6px;
+  color: #b42318;
+  font-size: 11px;
+}
+
+#rules-list {
+  display: grid;
+  gap: 7px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.rule {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 7px;
+  background: #f5f7fb;
+}
+
+.rule-value {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.rule-meta,
+#empty-state {
+  margin-top: 2px;
+  color: #667085;
+  font-size: 11px;
+}
+
+.delete-rule {
+  padding: 6px 8px;
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 24px;
+  margin: 0;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+}
+
+.switch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #98a2b3;
+  cursor: pointer;
+}
+
+.switch span::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  content: "";
+  transition: transform 120ms ease;
+}
+
+.switch input:checked + span {
+  background: #315efb;
+}
+
+.switch input:checked + span::after {
+  transform: translateX(18px);
+}
+
+.switch input:focus-visible + span,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #315efb;
+  outline-offset: 2px;
+}

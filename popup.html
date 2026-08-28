@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Universal Element Blocker</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Element Blocker</h1>
+          <p id="current-host">กำลังอ่านเว็บไซต์…</p>
+        </div>
+        <label class="switch" title="เปิดหรือปิดบนเว็บไซต์นี้">
+          <input id="site-enabled" type="checkbox" checked />
+          <span></span>
+        </label>
+      </header>
+
+      <form id="rule-form">
+        <label>
+          ประเภทกฎ
+          <select id="rule-type">
+            <option value="url">ข้อความใน URL/attribute</option>
+            <option value="selector">CSS selector</option>
+          </select>
+        </label>
+
+        <label>
+          ค่าที่ต้องการบล็อก
+          <input
+            id="rule-value"
+            type="text"
+            placeholder="เช่น ibit.ly หรือ .popup-ad"
+            autocomplete="off"
+            required
+          />
+        </label>
+
+        <label>
+          การทำงาน
+          <select id="rule-action">
+            <option value="remove">ลบ element</option>
+            <option value="hide">ซ่อน element</option>
+          </select>
+        </label>
+
+        <button type="submit">เพิ่มกฎ</button>
+        <p id="form-error" role="alert" aria-live="polite"></p>
+      </form>
+
+      <section aria-labelledby="rules-title">
+        <h2 id="rules-title">กฎทั้งหมด</h2>
+        <p id="empty-state">ยังไม่มีกฎ</p>
+        <ul id="rules-list"></ul>
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
