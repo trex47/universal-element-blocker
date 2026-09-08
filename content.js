@@ -142,8 +142,7 @@
     return segments.join(" > ");
   }
 
-  async function saveContextTargetRule(action) {
-    const target = contextTarget;
+  async function saveTargetRule(target, action) {
     if (!target?.selector) return { ok: false };
 
     const stored = await chrome.storage.local.get({ rules: DEFAULT_SETTINGS.rules });
@@ -167,6 +166,10 @@
 
     if (target.element?.isConnected) applyAction(target.element, action);
     return { ok: true, selector: target.selector };
+  }
+
+  async function saveContextTargetRule(action) {
+    return saveTargetRule(contextTarget, action);
   }
 
   function inspectElement(element) {
@@ -275,6 +278,30 @@
         element: target,
         selector: createUniqueSelector(target)
       };
+    },
+    true
+  );
+
+  document.addEventListener(
+    "click",
+    (event) => {
+      if (!event.altKey || event.button !== 0 || !isEnabledForThisPage()) return;
+
+      const element = event.composedPath().find((node) => node instanceof Element);
+      if (!element) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      void saveTargetRule(
+        {
+          element,
+          selector: createUniqueSelector(element)
+        },
+        "hide"
+      ).catch(() => {
+        // Ignore storage failures; the page interaction was already cancelled.
+      });
     },
     true
   );
