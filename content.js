@@ -11,7 +11,14 @@
       }
     ],
     disabledHosts: [],
-    pickerEnabled: false
+    pickerEnabled: false,
+    pickerShortcut: {
+      key: "q",
+      altKey: true,
+      ctrlKey: false,
+      shiftKey: false,
+      metaKey: false
+    }
   };
 
   const URL_ATTRIBUTES = [
@@ -56,7 +63,19 @@
       ? value.disabledHosts.filter((host) => typeof host === "string")
       : [];
 
-    return { rules, disabledHosts, pickerEnabled: value?.pickerEnabled === true };
+    const shortcut = value?.pickerShortcut;
+    const pickerShortcut =
+      shortcut && typeof shortcut.key === "string" && shortcut.key
+        ? {
+            key: shortcut.key.toLowerCase(),
+            altKey: shortcut.altKey === true,
+            ctrlKey: shortcut.ctrlKey === true,
+            shiftKey: shortcut.shiftKey === true,
+            metaKey: shortcut.metaKey === true
+          }
+        : DEFAULT_SETTINGS.pickerShortcut;
+
+    return { rules, disabledHosts, pickerEnabled: value?.pickerEnabled === true, pickerShortcut };
   }
 
   function isEnabledForThisPage() {
@@ -249,13 +268,24 @@
     });
   }
 
+  function matchesPickerShortcut(event) {
+    const shortcut = settings.pickerShortcut;
+    return (
+      event.key.toLowerCase() === shortcut.key &&
+      event.altKey === shortcut.altKey &&
+      event.ctrlKey === shortcut.ctrlKey &&
+      event.shiftKey === shortcut.shiftKey &&
+      event.metaKey === shortcut.metaKey
+    );
+  }
+
   const pickerStyle = document.createElement("style");
   pickerStyle.textContent =
     `.${PICKER_CLASS}{outline:3px solid #e5484d!important;outline-offset:2px!important;cursor:crosshair!important}` +
     ".ueb-delete-picker-active{cursor:crosshair!important}";
 
   document.addEventListener("keydown", (event) => {
-    if (event.altKey && event.key.toLowerCase() === "q" && !event.repeat) {
+    if (matchesPickerShortcut(event) && !event.repeat) {
       event.preventDefault();
       event.stopImmediatePropagation();
       if (pickerActive && pickerTemporary) stopDeletePicker();
@@ -374,7 +404,7 @@
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") return;
-    if (!changes.rules && !changes.disabledHosts && !changes.pickerEnabled) return;
+    if (!changes.rules && !changes.disabledHosts && !changes.pickerEnabled && !changes.pickerShortcut) return;
     if (changes.pickerEnabled && changes.pickerEnabled.newValue !== true) {
       stopDeletePicker();
     }

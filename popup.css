@@ -203,6 +203,38 @@ select:focus-visible {
   font-weight: 650;
 }
 
+.shortcut-settings h2 {
+  margin-bottom: 8px;
+}
+
+.shortcut-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.shortcut-row input {
+  min-width: 0;
+  margin: 0;
+  background: #f5f7fb;
+}
+
+#change-shortcut {
+  padding: 8px 10px;
+  background: #eef2ff;
+  color: #315efb;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+#shortcut-status {
+  min-height: 14px;
+  margin-top: 6px;
+  color: #667085;
+  font-size: 11px;
+}
+
 #import-status {
   grid-column: 1 / -1;
   min-height: 14px;

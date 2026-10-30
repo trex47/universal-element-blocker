@@ -9,6 +9,13 @@
       action: "remove"
     }
   ];
+  const DEFAULT_SHORTCUT = {
+    key: "q",
+    altKey: true,
+    ctrlKey: false,
+    shiftKey: false,
+    metaKey: false
+  };
 
   const elements = {
     currentHost: document.querySelector("#current-host"),
@@ -19,6 +26,9 @@
     importRules: document.querySelector("#import-rules"),
     importFile: document.querySelector("#import-file"),
     importStatus: document.querySelector("#import-status"),
+    pickerShortcut: document.querySelector("#picker-shortcut"),
+    changeShortcut: document.querySelector("#change-shortcut"),
+    shortcutStatus: document.querySelector("#shortcut-status"),
     form: document.querySelector("#rule-form"),
     type: document.querySelector("#rule-type"),
     value: document.querySelector("#rule-value"),
@@ -32,9 +42,36 @@
   let rules = [];
   let disabledHosts = [];
   let pickerEnabled = false;
+  let pickerShortcut = DEFAULT_SHORTCUT;
+  let capturingShortcut = false;
 
   function makeId() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+  }
+
+  function normalizeShortcut(value) {
+    if (!value || typeof value.key !== "string" || !value.key.trim()) return DEFAULT_SHORTCUT;
+    return {
+      key: value.key,
+      altKey: value.altKey === true,
+      ctrlKey: value.ctrlKey === true,
+      shiftKey: value.shiftKey === true,
+      metaKey: value.metaKey === true
+    };
+  }
+
+  function formatShortcut(shortcut) {
+    const parts = [];
+    if (shortcut.ctrlKey) parts.push("Ctrl");
+    if (shortcut.altKey) parts.push("Alt");
+    if (shortcut.shiftKey) parts.push("Shift");
+    if (shortcut.metaKey) parts.push("Meta");
+    parts.push(shortcut.key.length === 1 ? shortcut.key.toUpperCase() : shortcut.key);
+    return parts.join(" + ");
+  }
+
+  function renderShortcut() {
+    elements.pickerShortcut.value = formatShortcut(pickerShortcut);
   }
 
   function validateRule(type, value) {
@@ -146,12 +183,14 @@
     rules = Array.isArray(stored.rules) ? stored.rules : DEFAULT_RULES;
     disabledHosts = Array.isArray(stored.disabledHosts) ? stored.disabledHosts : [];
     pickerEnabled = stored.pickerEnabled === true;
+    pickerShortcut = normalizeShortcut(stored.pickerShortcut);
 
     elements.currentHost.textContent = currentHost || "หน้านี้ Chrome ไม่อนุญาตให้แก้ไข";
     elements.siteEnabled.checked = Boolean(currentHost) && !disabledHosts.includes(currentHost);
     elements.siteEnabled.disabled = !currentHost;
     elements.pickerEnabled.checked = pickerEnabled;
     elements.pickerStatus.textContent = pickerEnabled ? "Active" : "Inactive";
+    renderShortcut();
     renderRules();
   }
 
@@ -195,12 +234,61 @@
     await chrome.storage.local.set({ pickerEnabled });
   });
 
+  elements.changeShortcut.addEventListener("click", () => {
+    capturingShortcut = true;
+    elements.changeShortcut.textContent = "ยกเลิก";
+    elements.pickerShortcut.value = "กดคีย์ลัด...";
+    elements.shortcutStatus.textContent = "กด modifier เช่น Alt/Ctrl/Shift พร้อมกับอีกหนึ่งปุ่ม";
+  });
+
+  elements.changeShortcut.addEventListener("keydown", (event) => {
+    if (!capturingShortcut) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.key === "Escape") {
+      capturingShortcut = false;
+      elements.changeShortcut.textContent = "เปลี่ยนคีย์ลัด";
+      renderShortcut();
+      elements.shortcutStatus.textContent = "ยกเลิกการเปลี่ยนคีย์ลัดแล้ว";
+      return;
+    }
+
+    if (["Alt", "Control", "Shift", "Meta"].includes(event.key)) {
+      elements.shortcutStatus.textContent = "กด modifier พร้อมกับอีกหนึ่งปุ่ม";
+      return;
+    }
+
+    if (!event.altKey && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
+      elements.shortcutStatus.textContent = "ต้องใช้ modifier อย่างน้อยหนึ่งปุ่ม (Alt, Ctrl, Shift หรือ Meta)";
+      return;
+    }
+
+    pickerShortcut = {
+      key: event.key.toLowerCase(),
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      metaKey: event.metaKey
+    };
+    capturingShortcut = false;
+    renderShortcut();
+    elements.changeShortcut.textContent = "เปลี่ยนคีย์ลัด";
+    elements.shortcutStatus.textContent = "บันทึกคีย์ลัดแล้ว";
+    void chrome.storage.local.set({ pickerShortcut });
+  });
+
   elements.exportRules.addEventListener("click", () => {
     const data = {
       format: "universal-element-blocker-rules",
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
-      rules
+      rules,
+      settings: {
+        disabledHosts,
+        pickerEnabled,
+        pickerShortcut
+      }
     };
     const blobUrl = URL.createObjectURL(
       new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
@@ -223,7 +311,8 @@
     if (!file) return;
 
     try {
-      const importedRules = parseImportedRules(JSON.parse(await file.text()));
+      const data = JSON.parse(await file.text());
+      const importedRules = parseImportedRules(data);
       const signatures = new Set(rules.map(ruleSignature));
       const ids = new Set(rules.map((rule) => rule.id));
       let added = 0;
@@ -237,8 +326,31 @@
         added += 1;
       }
 
-      await saveRules();
-      elements.importStatus.textContent = `นำเข้าแล้ว ${added} กฎ`;
+      const updates = { rules };
+      const importedSettings = data && !Array.isArray(data) ? data.settings : undefined;
+      if (importedSettings && typeof importedSettings === "object") {
+        if (Array.isArray(importedSettings.disabledHosts)) {
+          disabledHosts = importedSettings.disabledHosts.filter((host) => typeof host === "string");
+          updates.disabledHosts = disabledHosts;
+        }
+        if (typeof importedSettings.pickerEnabled === "boolean") {
+          pickerEnabled = importedSettings.pickerEnabled;
+          updates.pickerEnabled = pickerEnabled;
+        }
+        if (importedSettings.pickerShortcut && typeof importedSettings.pickerShortcut.key === "string") {
+          pickerShortcut = normalizeShortcut(importedSettings.pickerShortcut);
+          updates.pickerShortcut = pickerShortcut;
+        }
+      }
+
+      await chrome.storage.local.set(updates);
+      renderRules();
+      elements.pickerEnabled.checked = pickerEnabled;
+      elements.pickerStatus.textContent = pickerEnabled ? "Active" : "Inactive";
+      elements.siteEnabled.checked = Boolean(currentHost) && !disabledHosts.includes(currentHost);
+      renderShortcut();
+      const settingsNote = importedSettings ? " และการตั้งค่า" : "";
+      elements.importStatus.textContent = `นำเข้า ${added} กฎ${settingsNote} แล้ว`;
     } catch (error) {
       elements.importStatus.textContent = error instanceof Error
         ? error.message
