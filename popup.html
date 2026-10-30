@@ -56,6 +56,24 @@
         <p id="empty-state">ยังไม่มีกฎ</p>
         <ul id="rules-list"></ul>
       </section>
+
+      <section class="rule-tools" aria-label="จัดการกฎ">
+        <button id="export-rules" type="button">ส่งออกกฎ</button>
+        <button id="import-rules" type="button">นำเข้ากฎ</button>
+        <input id="import-file" type="file" accept=".json,application/json" hidden />
+        <p id="import-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <footer>
+        <div>
+          <strong>โหมดคลิกเพื่อลบ</strong>
+          <p id="picker-status">Inactive</p>
+        </div>
+        <label class="switch" title="เปิดหรือปิดโหมดคลิกเพื่อลบบนเว็บ">
+          <input id="picker-enabled" type="checkbox" />
+          <span></span>
+        </label>
+      </footer>
     </main>
 
     <script src="popup.js"></script>

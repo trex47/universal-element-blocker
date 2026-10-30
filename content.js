@@ -10,7 +10,8 @@
         action: "remove"
       }
     ],
-    disabledHosts: []
+    disabledHosts: [],
+    pickerEnabled: false
   };
 
   const URL_ATTRIBUTES = [
@@ -31,9 +32,14 @@
   const HIDDEN_ATTRIBUTE = "data-ueb-hidden";
   const PREVIOUS_DISPLAY_ATTRIBUTE = "data-ueb-previous-display";
   const PREVIOUS_PRIORITY_ATTRIBUTE = "data-ueb-previous-display-priority";
+  const PICKER_CLASS = "ueb-delete-picker-target";
   let settings = DEFAULT_SETTINGS;
   let observer;
   let contextTarget;
+  let pickerActive = false;
+  let pickerTemporary = false;
+  let pickerTarget;
+  let pickerNotice;
 
   function normalizeSettings(value) {
     const rules = Array.isArray(value?.rules)
@@ -50,7 +56,7 @@
       ? value.disabledHosts.filter((host) => typeof host === "string")
       : [];
 
-    return { rules, disabledHosts };
+    return { rules, disabledHosts, pickerEnabled: value?.pickerEnabled === true };
   }
 
   function isEnabledForThisPage() {
@@ -172,6 +178,111 @@
     return saveTargetRule(contextTarget, action);
   }
 
+  function clearPickerHighlight() {
+    pickerTarget?.classList.remove(PICKER_CLASS);
+    pickerTarget = undefined;
+  }
+
+  function stopDeletePicker() {
+    pickerActive = false;
+    pickerTemporary = false;
+    clearPickerHighlight();
+    pickerNotice?.remove();
+    pickerNotice = undefined;
+    document.documentElement?.classList.remove("ueb-delete-picker-active");
+  }
+
+  function startDeletePicker(temporary = true) {
+    if (!isEnabledForThisPage() || !document.documentElement) return;
+    if (pickerActive) {
+      if (!temporary) {
+        pickerTemporary = false;
+        if (pickerNotice) {
+          pickerNotice.textContent =
+            "โหมดลบ Active: คลิก element ที่ชี้เพื่อลบ · ปิดได้ในหน้าต่างส่วนขยาย";
+        }
+      }
+      return;
+    }
+    pickerActive = true;
+    pickerTemporary = temporary;
+    const styleParent = document.head || document.documentElement;
+    if (!styleParent.contains(pickerStyle)) styleParent.append(pickerStyle);
+    pickerNotice = document.createElement("div");
+    pickerNotice.textContent = temporary
+      ? "โหมดลบ element: ชี้แล้วคลิกเพื่อลบ · Esc เพื่อยกเลิก"
+      : "โหมดลบ Active: คลิก element ที่ชี้เพื่อลบ · ปิดได้ในหน้าต่างส่วนขยาย";
+    pickerNotice.setAttribute("role", "status");
+    pickerNotice.style.cssText =
+      "position:fixed;z-index:2147483647;top:12px;left:50%;transform:translateX(-50%);padding:9px 14px;border-radius:8px;background:#b42318;color:#fff;font:600 13px/1.4 system-ui,sans-serif;box-shadow:0 2px 12px #0005;pointer-events:none";
+    (document.documentElement || document).append(pickerNotice);
+    document.documentElement?.classList.add("ueb-delete-picker-active");
+  }
+
+  function pickerElementFromEvent(event) {
+    return event.composedPath().find(
+      (node) => node instanceof Element && node !== pickerNotice && !pickerNotice?.contains(node)
+    );
+  }
+
+  function handlePickerActivation(event) {
+    if (!pickerActive) return;
+    if (event.type === "click" && event.button !== 0) return;
+    if (event.type === "auxclick" && event.button !== 1) return;
+
+    let element = pickerElementFromEvent(event);
+    if (!element || element === document.documentElement || element === document.body) return;
+
+    // Remove a linked ad image together with its clickable link, so a blank
+    // anchor cannot remain behind and still open the ad URL.
+    if (element.localName === "img") {
+      element = element.closest("a[href]") || element;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const target = { element, selector: createUniqueSelector(element) };
+    clearPickerHighlight();
+    if (pickerTemporary) stopDeletePicker();
+    void saveTargetRule(target, "remove").catch(() => {
+      // Ignore storage failures; the page interaction was already cancelled.
+    });
+  }
+
+  const pickerStyle = document.createElement("style");
+  pickerStyle.textContent =
+    `.${PICKER_CLASS}{outline:3px solid #e5484d!important;outline-offset:2px!important;cursor:crosshair!important}` +
+    ".ueb-delete-picker-active{cursor:crosshair!important}";
+
+  document.addEventListener("keydown", (event) => {
+    if (event.altKey && event.key.toLowerCase() === "q" && !event.repeat) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (pickerActive && pickerTemporary) stopDeletePicker();
+      else if (!pickerActive) startDeletePicker(true);
+      return;
+    }
+
+    if (pickerActive && pickerTemporary && event.key === "Escape") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      stopDeletePicker();
+    }
+  }, true);
+
+  document.addEventListener("mouseover", (event) => {
+    if (!pickerActive) return;
+    const element = pickerElementFromEvent(event);
+    if (!element || element === document.documentElement || element === document.body) return;
+    if (element === pickerTarget || element.contains(pickerNotice)) return;
+    clearPickerHighlight();
+    pickerTarget = element;
+    pickerTarget.classList.add(PICKER_CLASS);
+  }, true);
+
+  window.addEventListener("click", handlePickerActivation, true);
+  window.addEventListener("auxclick", handlePickerActivation, true);
+
   function inspectElement(element) {
     if (!(element instanceof Element) || !element.isConnected) return;
     if (element.hasAttribute(HIDDEN_ATTRIBUTE)) return;
@@ -256,12 +367,17 @@
     settings = normalizeSettings(stored);
     restoreHiddenElements();
     inspectTree(document);
+    if (!isEnabledForThisPage()) stopDeletePicker();
+    else if (settings.pickerEnabled) startDeletePicker(false);
     if (observer) startObserver();
   }
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") return;
-    if (!changes.rules && !changes.disabledHosts) return;
+    if (!changes.rules && !changes.disabledHosts && !changes.pickerEnabled) return;
+    if (changes.pickerEnabled && changes.pickerEnabled.newValue !== true) {
+      stopDeletePicker();
+    }
     void loadSettings();
   });
 

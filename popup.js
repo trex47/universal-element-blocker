@@ -13,6 +13,12 @@
   const elements = {
     currentHost: document.querySelector("#current-host"),
     siteEnabled: document.querySelector("#site-enabled"),
+    pickerEnabled: document.querySelector("#picker-enabled"),
+    pickerStatus: document.querySelector("#picker-status"),
+    exportRules: document.querySelector("#export-rules"),
+    importRules: document.querySelector("#import-rules"),
+    importFile: document.querySelector("#import-file"),
+    importStatus: document.querySelector("#import-status"),
     form: document.querySelector("#rule-form"),
     type: document.querySelector("#rule-type"),
     value: document.querySelector("#rule-value"),
@@ -25,6 +31,7 @@
   let currentHost = "";
   let rules = [];
   let disabledHosts = [];
+  let pickerEnabled = false;
 
   function makeId() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
@@ -81,6 +88,46 @@
     renderRules();
   }
 
+  function ruleSignature(rule) {
+    return JSON.stringify([rule.type, rule.value, rule.action]);
+  }
+
+  function parseImportedRules(value) {
+    const imported = Array.isArray(value) ? value : value?.rules;
+    if (!Array.isArray(imported)) throw new Error("ไม่พบรายการกฎในไฟล์ JSON");
+
+    const valid = [];
+    for (const candidate of imported) {
+      if (
+        !candidate ||
+        !["url", "selector"].includes(candidate.type) ||
+        typeof candidate.value !== "string" ||
+        !candidate.value.trim() ||
+        !["remove", "hide"].includes(candidate.action)
+      ) continue;
+
+      const rule = {
+        id: typeof candidate.id === "string" && candidate.id ? candidate.id : makeId(),
+        type: candidate.type,
+        value: candidate.value.trim(),
+        action: candidate.action
+      };
+
+      if (rule.type === "selector") {
+        try {
+          document.querySelector(rule.value);
+        } catch {
+          continue;
+        }
+      }
+
+      valid.push(rule);
+    }
+
+    if (imported.length && !valid.length) throw new Error("ไม่พบกฎที่ถูกต้องในไฟล์");
+    return valid;
+  }
+
   async function initialize() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
@@ -92,15 +139,19 @@
 
     const stored = await chrome.storage.local.get({
       rules: DEFAULT_RULES,
-      disabledHosts: []
+      disabledHosts: [],
+      pickerEnabled: false
     });
 
     rules = Array.isArray(stored.rules) ? stored.rules : DEFAULT_RULES;
     disabledHosts = Array.isArray(stored.disabledHosts) ? stored.disabledHosts : [];
+    pickerEnabled = stored.pickerEnabled === true;
 
     elements.currentHost.textContent = currentHost || "หน้านี้ Chrome ไม่อนุญาตให้แก้ไข";
     elements.siteEnabled.checked = Boolean(currentHost) && !disabledHosts.includes(currentHost);
     elements.siteEnabled.disabled = !currentHost;
+    elements.pickerEnabled.checked = pickerEnabled;
+    elements.pickerStatus.textContent = pickerEnabled ? "Active" : "Inactive";
     renderRules();
   }
 
@@ -136,6 +187,63 @@
 
     disabledHosts = [...hosts];
     await chrome.storage.local.set({ disabledHosts });
+  });
+
+  elements.pickerEnabled.addEventListener("change", async () => {
+    pickerEnabled = elements.pickerEnabled.checked;
+    elements.pickerStatus.textContent = pickerEnabled ? "Active" : "Inactive";
+    await chrome.storage.local.set({ pickerEnabled });
+  });
+
+  elements.exportRules.addEventListener("click", () => {
+    const data = {
+      format: "universal-element-blocker-rules",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      rules
+    };
+    const blobUrl = URL.createObjectURL(
+      new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+    );
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = "element-blocker-rules.json";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  });
+
+  elements.importRules.addEventListener("click", () => {
+    elements.importStatus.textContent = "";
+    elements.importFile.click();
+  });
+
+  elements.importFile.addEventListener("change", async () => {
+    const file = elements.importFile.files?.[0];
+    elements.importFile.value = "";
+    if (!file) return;
+
+    try {
+      const importedRules = parseImportedRules(JSON.parse(await file.text()));
+      const signatures = new Set(rules.map(ruleSignature));
+      const ids = new Set(rules.map((rule) => rule.id));
+      let added = 0;
+
+      for (const rule of importedRules) {
+        if (signatures.has(ruleSignature(rule))) continue;
+        if (ids.has(rule.id)) rule.id = makeId();
+        rules.push(rule);
+        signatures.add(ruleSignature(rule));
+        ids.add(rule.id);
+        added += 1;
+      }
+
+      await saveRules();
+      elements.importStatus.textContent = `นำเข้าแล้ว ${added} กฎ`;
+    } catch (error) {
+      elements.importStatus.textContent = error instanceof Error
+        ? error.message
+        : "อ่านไฟล์ไม่สำเร็จ";
+    }
   });
 
   void initialize();

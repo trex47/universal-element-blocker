@@ -188,3 +188,46 @@ select:focus-visible {
   outline: 2px solid #315efb;
   outline-offset: 2px;
 }
+
+.rule-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.rule-tools button {
+  padding: 8px;
+  background: #eef2ff;
+  color: #315efb;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+#import-status {
+  grid-column: 1 / -1;
+  min-height: 14px;
+  color: #667085;
+  font-size: 11px;
+}
+
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #e1e6ef;
+  border-radius: 10px;
+  background: #fff;
+}
+
+footer strong {
+  font-size: 12px;
+}
+
+footer p {
+  margin-top: 2px;
+  color: #667085;
+  font-size: 11px;
+}
